@@ -64,6 +64,9 @@ import { ContractsAndOrdersView } from './modules/contracts/ContractsAndOrdersVi
 import { InventoryAndProcurementView } from './modules/inventory/InventoryAndProcurementView';
 import { FinanceAndReceivablesView } from './modules/finance/FinanceAndReceivablesView';
 import { DocumentsReportsSettingsView } from './modules/settings/DocumentsReportsSettingsView';
+import { ThemeToggle } from './modules/shared/ThemeToggle';
+import { PWAInstallButton } from './modules/pwa/PWAInstallButton';
+import { OfflineIndicator } from './modules/pwa/OfflineIndicator';
 
 const STORAGE_KEY = 'ivoireappro_erp_state_v1';
 
@@ -746,9 +749,9 @@ export function App() {
     state.deliveries[0];
 
   return (
-    <div className="min-h-screen flex bg-slate-50 text-slate-900">
+    <div className="min-h-screen flex bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 transition-colors">
       {/* SIDEBAR DESKTOP (260px - SaaS & Dashboard Reference) */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 border-r border-slate-200 bg-slate-950 text-slate-200">
+      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:fixed lg:inset-y-0 border-r border-slate-200 dark:border-slate-800 bg-slate-950 text-slate-200">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-800">
           <button
             type="button"
@@ -823,26 +826,26 @@ export function App() {
       {/* CONTENU PRINCIPAL */}
       <div className="flex-1 lg:pl-64 flex flex-col min-w-0">
         {/* TOP HEADER BAR (3-Zone Contract : Breadcrumb — Command/Role — Primary Action) */}
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 py-3 sm:px-6 transition-colors">
           {/* Zone 1 : Mobile Menu + Breadcrumb */}
           <div className="flex items-center gap-3">
             <button
               type="button"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className="lg:hidden rounded border border-slate-200 p-1.5 text-slate-700"
+              className="lg:hidden rounded border border-slate-200 dark:border-slate-700 p-1.5 text-slate-700 dark:text-slate-200"
             >
               <Menu className="h-4 w-4" />
             </button>
-            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400">
               <button
                 type="button"
                 onClick={() => setActiveSection('dashboard')}
-                className="font-semibold text-slate-900 hover:underline"
+                className="font-semibold text-slate-900 dark:text-slate-100 hover:underline"
               >
                 IvoireAppro
               </button>
               <ChevronRight className="h-3.5 w-3.5 text-slate-400" />
-              <span className="font-medium text-slate-700">
+              <span className="font-medium text-slate-700 dark:text-slate-300">
                 {activeSection.toUpperCase()}
               </span>
             </div>
@@ -853,14 +856,14 @@ export function App() {
             <button
               type="button"
               onClick={() => setCommandMenuOpen(true)}
-              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs text-slate-500 hover:border-slate-300"
+              className="inline-flex items-center gap-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 text-xs text-slate-500 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-600 transition-colors"
             >
               <Search className="h-3.5 w-3.5" />
               <span>Rechercher marché, BL, facture...</span>
             </button>
 
             <div className="flex items-center gap-1.5 text-xs">
-              <UserCheck className="h-3.5 w-3.5 text-slate-500" />
+              <UserCheck className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
               <select
                 value={state.currentUserId}
                 onChange={(e) => {
@@ -877,7 +880,7 @@ export function App() {
                   }
                 }}
                 aria-label="Sélecteur de rôle RBAC"
-                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-800"
+                className="rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-800 dark:text-slate-200"
               >
                 {state.users.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -888,8 +891,10 @@ export function App() {
             </div>
           </div>
 
-          {/* Zone 3 : Actions Primaires */}
+          {/* Zone 3 : Actions Primaires, PWA & Bascule Thème Sombre */}
           <div className="flex items-center gap-2">
+            <PWAInstallButton />
+            <ThemeToggle />
             <button
               type="button"
               onClick={() => {
@@ -898,7 +903,7 @@ export function App() {
                 triggerToast('Données de démonstration réinitialisées.');
               }}
               title="Réinitialiser les données de démo"
-              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 whitespace-nowrap"
+              className="inline-flex items-center gap-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-750 whitespace-nowrap transition-colors"
             >
               <RotateCcw className="h-3.5 w-3.5" />
               <span className="hidden sm:inline">Réinitialiser Démo</span>
@@ -906,7 +911,7 @@ export function App() {
             <button
               type="button"
               onClick={() => setActiveSection('new-delivery')}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 whitespace-nowrap"
+              className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 dark:bg-emerald-600 px-3.5 py-1.5 text-xs font-semibold text-white hover:bg-slate-800 dark:hover:bg-emerald-500 whitespace-nowrap transition-colors"
             >
               <Plus className="h-3.5 w-3.5" />
               Nouvelle Livraison
@@ -1641,6 +1646,8 @@ export function App() {
           </div>
         </div>
       )}
+      {/* INDICATEUR D'ÉTAT HORS-LIGNE PWA */}
+      <OfflineIndicator />
     </div>
   );
 }
