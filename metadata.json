@@ -1,0 +1,6 @@
+{
+  "name": " IvoireAppro ERP — Gestion Fournisseur Institutionnel de Denrées",
+  "description": "ERP verticalisé pour fournisseur ivoirien de denrées alimentaires aux clients institutionnels : suivi des marchés, contrôle des quantités, livraisons multi-sites, bordereaux PDF versionnés, réceptions, facturation, créances et rentabilité.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
