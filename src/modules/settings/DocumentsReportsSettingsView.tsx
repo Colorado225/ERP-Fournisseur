@@ -1,11 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
+  AlertTriangle,
+  ArrowRight,
   Building,
+  Check,
   CheckCircle2,
   FileDown,
   FileText,
   Lock,
+  Package,
   Play,
+  Save,
   Shield,
   Sliders,
   Users,
@@ -39,17 +44,63 @@ interface DocumentsReportsSettingsViewProps {
   mode: 'DOCUMENTS' | 'REPORTS' | 'SETTINGS';
   onSwitchUser: (userId: string) => void;
   onUpdateOrganization: (org: Organization) => void;
+  onUpdateProductSafetyThreshold?: (productId: string, newThreshold: number) => void;
+  onNavigateToInventory?: () => void;
 }
 
 export const DocumentsReportsSettingsView: React.FC<
   DocumentsReportsSettingsViewProps
-> = ({ state, mode, onSwitchUser, onUpdateOrganization }) => {
+> = ({
+  state,
+  mode,
+  onSwitchUser,
+  onUpdateOrganization,
+  onUpdateProductSafetyThreshold,
+  onNavigateToInventory,
+}) => {
   const [settingsTab, setSettingsTab] = useState<
-    'ORG' | 'USERS_RBAC' | 'TEMPLATES' | 'RULES' | 'AUDIT_TESTS'
+    'ORG' | 'USERS_RBAC' | 'STOCK_SAFETY' | 'TEMPLATES' | 'RULES' | 'AUDIT_TESTS'
   >('ORG');
 
   const [orgForm, setOrgForm] = useState<Organization>(state.organization);
   const [orgSavedBanner, setOrgSavedBanner] = useState(false);
+
+  // Brouillons locaux pour la configuration des seuils de stock de sécurité
+  const [thresholdDrafts, setThresholdDrafts] = useState<Record<string, number>>(() => {
+    const drafts: Record<string, number> = {};
+    state.products.forEach((p) => {
+      drafts[p.id] = p.minStockThreshold;
+    });
+    return drafts;
+  });
+  const [savedSuccessId, setSavedSuccessId] = useState<string | null>(null);
+
+  useEffect(() => {
+    setThresholdDrafts((prev) => {
+      const next = { ...prev };
+      state.products.forEach((p) => {
+        if (next[p.id] === undefined) {
+          next[p.id] = p.minStockThreshold;
+        }
+      });
+      return next;
+    });
+  }, [state.products]);
+
+  const handleSaveProductThreshold = (productId: string) => {
+    const val = thresholdDrafts[productId];
+    if (val !== undefined && onUpdateProductSafetyThreshold) {
+      onUpdateProductSafetyThreshold(productId, Math.max(0, Number(val) || 0));
+      setSavedSuccessId(productId);
+      setTimeout(() => setSavedSuccessId(null), 2500);
+    }
+  };
+
+  const handleAdjustMultiplier = (productId: string, multiplier: number) => {
+    const current = thresholdDrafts[productId] ?? (state.products.find((p) => p.id === productId)?.minStockThreshold || 0);
+    const updated = Math.max(0, Math.round(current * multiplier));
+    setThresholdDrafts((prev) => ({ ...prev, [productId]: updated }));
+  };
 
   const testResults = runDomainTestSuite(state);
 
@@ -503,6 +554,7 @@ export const DocumentsReportsSettingsView: React.FC<
         {[
           { id: 'ORG', label: 'Entreprise Fournisseur' },
           { id: 'USERS_RBAC', label: 'Utilisateurs & Rôles RBAC' },
+          { id: 'STOCK_SAFETY', label: 'Seuils de Sécurité Stock' },
           { id: 'TEMPLATES', label: 'Templates de Bordereaux' },
           { id: 'RULES', label: 'Règles Métier / Fiscales / Admin' },
           { id: 'AUDIT_TESTS', label: 'Journal d’Audit & Tests Unitaires' },
@@ -696,6 +748,318 @@ export const DocumentsReportsSettingsView: React.FC<
                 })}
               </tbody>
             </table>
+          </div>
+        </div>
+      )}
+
+      {/* SOUS-ONGLET : CONFIGURATION DES SEUILS DE STOCK DE SÉCURITÉ PAR PRODUIT */}
+      {settingsTab === 'STOCK_SAFETY' && (
+        <div className="space-y-6">
+          {/* CARTE D'ENTÊTE ET STATISTIQUES */}
+          <div className="rounded-lg border border-slate-200 bg-white p-5 space-y-4">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between border-b border-slate-100 pb-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <div className="rounded-md bg-slate-900 p-1.5 text-white">
+                    <Package className="h-4 w-4" />
+                  </div>
+                  <h2 className="text-sm font-bold text-slate-900">
+                    Configuration des Seuils de Sécurité & Stocks Minima d’Alerte
+                  </h2>
+                </div>
+                <p className="mt-1 text-xs text-slate-500">
+                  Définissez pour chaque denrée le niveau de stock de sécurité critique. Si le stock disponible reconstruit (entrées − sorties) passe sous ce seuil, une alerte immédiate est répercutée dans le module « Produits & Stocks » et le Dashboard de Direction.
+                </p>
+              </div>
+
+              {onNavigateToInventory && (
+                <button
+                  type="button"
+                  onClick={onNavigateToInventory}
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-3.5 py-2 text-xs font-semibold text-slate-800 hover:bg-slate-50 whitespace-nowrap shadow-xs shrink-0"
+                >
+                  Ouvrir « Produits & Stocks »
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </div>
+
+            {/* SYNTHÈSE DES SEUILS */}
+            {(() => {
+              const criticalCount = state.products.filter((p) => {
+                const currentStock = calculateProductStockFromMovements(
+                  p.id,
+                  state.stockMovements
+                );
+                const threshold = thresholdDrafts[p.id] ?? p.minStockThreshold;
+                return currentStock <= threshold;
+              }).length;
+
+              const totalSafetyValue = state.products.reduce((acc, p) => {
+                const threshold = thresholdDrafts[p.id] ?? p.minStockThreshold;
+                return acc + threshold * p.standardCost;
+              }, 0);
+
+              return (
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <div className="rounded-md border border-slate-200 bg-slate-50/60 p-3.5">
+                    <p className="text-xs text-slate-500">Denrées gérées sous contrat</p>
+                    <p className="mt-1 text-xl font-bold font-mono tabular-nums text-slate-900">
+                      {state.products.length} références
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Règles de conversion immuables actives
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border border-slate-200 bg-slate-50/60 p-3.5">
+                    <p className="text-xs text-slate-500">Statut des alertes immédiates</p>
+                    <div className="mt-1 flex items-baseline gap-2">
+                      <p
+                        className={`text-xl font-bold font-mono tabular-nums ${
+                          criticalCount > 0 ? 'text-rose-700' : 'text-emerald-700'
+                        }`}
+                      >
+                        {criticalCount} {criticalCount > 1 ? 'denrées' : 'denrée'} sous le seuil
+                      </p>
+                    </div>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {criticalCount > 0
+                        ? 'Réapprovisionnement fournisseur requis'
+                        : 'Tous les stocks couvrent le seuil de sécurité'}
+                    </p>
+                  </div>
+
+                  <div className="rounded-md border border-slate-200 bg-slate-50/60 p-3.5">
+                    <p className="text-xs text-slate-500">Valorisation du stock de sécurité</p>
+                    <p className="mt-1 text-xl font-bold font-mono tabular-nums text-slate-900">
+                      {formatFcfa(totalSafetyValue)}
+                    </p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      Engagement financier minimum garanti
+                    </p>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* TABLEAU DE CONFIGURATION DES SEUILS PAR PRODUIT */}
+          <div className="rounded-lg border border-slate-200 bg-white overflow-hidden shadow-xs">
+            <div className="px-5 py-3.5 border-b border-slate-200 bg-slate-50/70 flex items-center justify-between">
+              <h3 className="text-xs font-bold text-slate-900">
+                Seuils Paramétrables par Denrée & Contrôle de Disponibilité
+              </h3>
+              <span className="text-[11px] text-slate-500">
+                Modification enregistrée en temps réel avec trace d’audit
+              </span>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50 font-semibold text-slate-700">
+                    <th className="py-3 px-4">Réf / Code</th>
+                    <th className="py-3 px-4">Denrée & Conditionnement</th>
+                    <th className="py-3 px-4 text-right">Coût Achat</th>
+                    <th className="py-3 px-4 text-right">Stock Actuel (Reconstruit)</th>
+                    <th className="py-3 px-4">Seuil de Sécurité Configurable</th>
+                    <th className="py-3 px-4 text-right">Diagnostic de Sécurité</th>
+                    <th className="py-3 px-4 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-200">
+                  {state.products.map((prod) => {
+                    const currentStock = calculateProductStockFromMovements(
+                      prod.id,
+                      state.stockMovements
+                    );
+                    const thresholdValue =
+                      thresholdDrafts[prod.id] ?? prod.minStockThreshold;
+                    const isCritical = currentStock <= thresholdValue;
+                    const isWarning =
+                      !isCritical && currentStock <= thresholdValue * 1.25;
+                    const deficit = isCritical ? thresholdValue - currentStock : 0;
+                    const coveragePercent =
+                      thresholdValue > 0
+                        ? Number(((currentStock / thresholdValue) * 100).toFixed(0))
+                        : 100;
+                    const isDraftDirty =
+                      thresholdValue !== prod.minStockThreshold;
+                    const isSavedSuccess = savedSuccessId === prod.id;
+
+                    return (
+                      <tr
+                        key={prod.id}
+                        className={`transition-colors ${
+                          isCritical
+                            ? 'bg-rose-50/30 hover:bg-rose-50/50'
+                            : 'hover:bg-slate-50/80'
+                        }`}
+                      >
+                        <td className="py-3.5 px-4 font-mono">
+                          <p className="font-bold text-slate-900">
+                            {prod.reference}
+                          </p>
+                          <p className="text-[11px] text-slate-500">
+                            {prod.internalCode}
+                          </p>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <p className="font-semibold text-slate-900">
+                            {prod.name}
+                          </p>
+                          <p className="text-slate-500">
+                            {prod.categoryName} · {prod.packaging}
+                          </p>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-mono tabular-nums text-slate-700 whitespace-nowrap">
+                          {formatFcfa(prod.standardCost)} / {prod.unit}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right font-mono tabular-nums whitespace-nowrap">
+                          <span
+                            className={`font-bold ${
+                              isCritical ? 'text-rose-700' : 'text-slate-900'
+                            }`}
+                          >
+                            {formatQty(currentStock, prod.unit)}
+                          </span>
+                        </td>
+
+                        <td className="py-3.5 px-4">
+                          <div className="flex flex-col gap-1.5 max-w-xs">
+                            <div className="flex items-center gap-1.5">
+                              <input
+                                type="number"
+                                min={0}
+                                step={prod.unit === 'CARTON' ? 10 : 100}
+                                value={thresholdValue}
+                                onChange={(e) => {
+                                  const val = Math.max(0, Number(e.target.value) || 0);
+                                  setThresholdDrafts((prev) => ({
+                                    ...prev,
+                                    [prod.id]: val,
+                                  }));
+                                }}
+                                className={`w-28 rounded border px-2.5 py-1 text-xs font-mono font-bold tabular-nums text-slate-900 ${
+                                  isDraftDirty
+                                    ? 'border-amber-400 bg-amber-50/60 focus:border-amber-500'
+                                    : 'border-slate-300 bg-white focus:border-slate-500'
+                                }`}
+                              />
+                              <span className="font-mono text-xs font-semibold text-slate-600">
+                                {prod.unit}
+                              </span>
+                            </div>
+
+                            {/* Boutons d'ajustement rapide */}
+                            <div className="flex items-center gap-1 text-[10px]">
+                              <button
+                                type="button"
+                                onClick={() => handleAdjustMultiplier(prod.id, 0.9)}
+                                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                title="Réduire le seuil de 10%"
+                              >
+                                -10%
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAdjustMultiplier(prod.id, 1.1)}
+                                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                title="Augmenter le seuil de 10%"
+                              >
+                                +10%
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => handleAdjustMultiplier(prod.id, 1.25)}
+                                className="rounded border border-slate-200 bg-slate-50 px-1.5 py-0.5 text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+                                title="Augmenter le seuil de 25%"
+                              >
+                                +25%
+                              </button>
+                              {isDraftDirty && (
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setThresholdDrafts((prev) => ({
+                                      ...prev,
+                                      [prod.id]: prod.minStockThreshold,
+                                    }))
+                                  }
+                                  className="text-slate-400 hover:text-slate-700 underline ml-1"
+                                >
+                                  Annuler
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          {isCritical ? (
+                            <div className="inline-flex flex-col items-end">
+                              <span className="inline-flex items-center gap-1 rounded bg-rose-100 px-2 py-0.5 text-[11px] font-bold text-rose-800">
+                                <AlertTriangle className="h-3 w-3 text-rose-600" />
+                                Rupture critique ({coveragePercent}%)
+                              </span>
+                              <span className="font-mono text-[10px] text-rose-700 mt-0.5">
+                                Manque : -{formatQty(deficit, prod.unit)}
+                              </span>
+                            </div>
+                          ) : isWarning ? (
+                            <div className="inline-flex flex-col items-end">
+                              <span className="inline-flex items-center gap-1 rounded bg-amber-100 px-2 py-0.5 text-[11px] font-semibold text-amber-800">
+                                Vigilance ({coveragePercent}%)
+                              </span>
+                              <span className="font-mono text-[10px] text-amber-700 mt-0.5">
+                                Proche du seuil
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="inline-flex flex-col items-end">
+                              <span className="inline-flex items-center gap-1 rounded bg-emerald-100 px-2 py-0.5 text-[11px] font-semibold text-emerald-800">
+                                <Check className="h-3 w-3 text-emerald-600" />
+                                Conforme ({coveragePercent}%)
+                              </span>
+                              <span className="font-mono text-[10px] text-emerald-700 mt-0.5">
+                                Marge : +{formatQty(currentStock - thresholdValue, prod.unit)}
+                              </span>
+                            </div>
+                          )}
+                        </td>
+
+                        <td className="py-3.5 px-4 text-right whitespace-nowrap">
+                          {isSavedSuccess ? (
+                            <span className="inline-flex items-center gap-1 text-xs font-bold text-emerald-700">
+                              <Check className="h-4 w-4" />
+                              Enregistré
+                            </span>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => handleSaveProductThreshold(prod.id)}
+                              disabled={!isDraftDirty}
+                              className={`inline-flex items-center gap-1.5 rounded px-3 py-1.5 text-xs font-semibold transition-colors ${
+                                isDraftDirty
+                                  ? 'bg-slate-900 text-white hover:bg-slate-800 shadow-xs'
+                                  : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                              }`}
+                            >
+                              <Save className="h-3.5 w-3.5" />
+                              Sauvegarder
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       )}

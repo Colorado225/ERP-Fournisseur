@@ -2,14 +2,17 @@ import React, { useState } from 'react';
 import {
   AlertTriangle,
   ArrowUpRight,
+  BadgePercent,
   Calendar,
   CheckCircle2,
   Clock,
+  CreditCard,
   FileSpreadsheet,
   FileText,
   Layers,
   Package,
   Plus,
+  Receipt,
   ShieldAlert,
   TrendingUp,
   Truck,
@@ -109,6 +112,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const totalReceivablesOverdue = state.invoices
     .filter((i) => i.status === InvoiceStatus.OVERDUE || (i.remainingAmount > 0 && i.dueDate < todayStr))
     .reduce((acc, i) => acc + i.remainingAmount, 0);
+
+  // Métriques financières consolidées (Cartes KPI du Dashboard)
+  const totalRevenue = totalInvoiced;
+  const recoveryRate =
+    totalRevenue > 0
+      ? Number(((totalCollected / totalRevenue) * 100).toFixed(1))
+      : 0;
+  const totalRecordedExpenses = (state.expenses || []).reduce(
+    (acc, e) => acc + e.amount,
+    0
+  );
+  const netOperatingMargin = totalRevenue - totalRecordedExpenses;
 
   // Stock critique & Péremptions proches
   const criticalStockProducts = state.products.filter((p) => {
@@ -405,6 +420,100 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
           </div>
         </div>
       ) : null}
+
+      {/* LIGNE DE CARTES KPI FINANCIERS : CHIFFRE D'AFFAIRES TOTAL, TAUX DE RECOUVREMENT, DÉPENSES TOTALES */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+        {/* KPI 1 : Chiffre d'affaires total */}
+        <div
+          onClick={() => onNavigate('finance')}
+          className="group cursor-pointer rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-xs transition-all space-y-3"
+        >
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Chiffre d’affaires total</span>
+            <span className="rounded-md bg-slate-100 p-1.5 text-slate-700 group-hover:bg-slate-200 transition-colors">
+              <Receipt className="h-4 w-4" />
+            </span>
+          </div>
+          <div>
+            <p className="text-2xl font-bold font-mono tabular-nums text-slate-900">
+              {formatFcfa(totalRevenue)}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Sur <span className="font-medium text-slate-700">{state.invoices.length} factures</span> clients émises
+            </p>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>CA livré accepté :</span>
+            <span className="font-mono tabular-nums font-semibold text-slate-800">
+              {formatFcfa(totalDeliveredAcceptedAmount)}
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 2 : Taux de recouvrement des créances */}
+        <div
+          onClick={() => onNavigate('finance')}
+          className="group cursor-pointer rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-xs transition-all space-y-3"
+        >
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Taux de recouvrement des créances</span>
+            <span className="rounded-md bg-emerald-50 p-1.5 text-emerald-700 group-hover:bg-emerald-100 transition-colors">
+              <BadgePercent className="h-4 w-4" />
+            </span>
+          </div>
+          <div>
+            <div className="flex items-baseline gap-2">
+              <p className="text-2xl font-bold font-mono tabular-nums text-emerald-700">
+                {recoveryRate} %
+              </p>
+              <span className="text-xs text-slate-500">encaissé</span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+              <div
+                className="h-full bg-emerald-600 transition-all duration-300"
+                style={{ width: `${Math.min(recoveryRate, 100)}%` }}
+              />
+            </div>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Encaissé / Reste dû :</span>
+            <span className="font-mono tabular-nums font-semibold text-slate-800">
+              {formatFcfa(totalCollected)} / {formatFcfa(totalReceivablesOpen)}
+            </span>
+          </div>
+        </div>
+
+        {/* KPI 3 : Montant total des dépenses enregistrées */}
+        <div
+          onClick={() => onNavigate('finance')}
+          className="group cursor-pointer rounded-lg border border-slate-200 bg-white p-5 hover:border-slate-300 hover:shadow-xs transition-all space-y-3"
+        >
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="font-semibold text-slate-700">Dépenses totales enregistrées</span>
+            <span className="rounded-md bg-slate-100 p-1.5 text-slate-700 group-hover:bg-slate-200 transition-colors">
+              <CreditCard className="h-4 w-4" />
+            </span>
+          </div>
+          <div>
+            <p className="text-2xl font-bold font-mono tabular-nums text-slate-900">
+              {formatFcfa(totalRecordedExpenses)}
+            </p>
+            <p className="text-xs text-slate-500 mt-1">
+              Sur <span className="font-medium text-slate-700">{(state.expenses || []).length} dépenses</span> directes & fret
+            </p>
+          </div>
+          <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+            <span>Solde brut d’exploitation :</span>
+            <span
+              className={`font-mono tabular-nums font-semibold ${
+                netOperatingMargin >= 0 ? 'text-emerald-700' : 'text-rose-700'
+              }`}
+            >
+              {formatFcfa(netOperatingMargin)}
+            </span>
+          </div>
+        </div>
+      </div>
 
       {/* GRILLE DES 10 KPIS PRINCIPAUX (SECTION 24) */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

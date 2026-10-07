@@ -572,6 +572,34 @@ export function App() {
     );
   };
 
+  const handleUpdateProductSafetyThreshold = (
+    productId: string,
+    newThreshold: number
+  ) => {
+    const targetProduct = state.products.find((p) => p.id === productId);
+    if (!targetProduct) return;
+
+    setState((prev) => ({
+      ...prev,
+      products: prev.products.map((p) =>
+        p.id === productId
+          ? { ...p, minStockThreshold: Math.max(0, newThreshold) }
+          : p
+      ),
+      auditLogs: appendAudit(
+        prev,
+        AuditActionType.UPDATE,
+        'Product',
+        targetProduct.reference,
+        `Mise à jour du seuil de stock de sécurité pour ${targetProduct.name} : ${newThreshold} ${targetProduct.unit} (précédent : ${targetProduct.minStockThreshold} ${targetProduct.unit})`
+      ),
+    }));
+
+    triggerToast(
+      `Seuil de sécurité mis à jour : ${targetProduct.name} (${newThreshold} ${targetProduct.unit}).`
+    );
+  };
+
   // ==========================================================================
   // NAVIGATION SIDEBAR CONFORME SECTION 30
   // ==========================================================================
@@ -1200,6 +1228,8 @@ export function App() {
                   ? 'PROCUREMENT'
                   : 'PRODUCTS'
               }
+              onNavigateToSettings={() => setActiveSection('settings')}
+              onUpdateProductSafetyThreshold={handleUpdateProductSafetyThreshold}
               onRecordStockMovement={(payload) => {
                 const nowStr = new Date()
                   .toISOString()
@@ -1403,6 +1433,8 @@ export function App() {
                 }));
                 triggerToast('Paramètres de l’entreprise mis à jour.');
               }}
+              onUpdateProductSafetyThreshold={handleUpdateProductSafetyThreshold}
+              onNavigateToInventory={() => setActiveSection('inventory')}
             />
           )}
         </main>
